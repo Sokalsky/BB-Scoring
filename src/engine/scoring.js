@@ -12,9 +12,9 @@ export function getMaxCards(playerCount) {
   return Math.floor(52 / playerCount);
 }
 
-/** Recommended default max cards (3-player starts at 15 instead of 17) */
+/** Recommended default max cards (2 and 3-player start at 15) */
 export function getDefaultMaxCards(playerCount) {
-  if (playerCount === 3) return 15;
+  if (playerCount <= 3) return 15;
   return getMaxCards(playerCount);
 }
 
