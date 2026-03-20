@@ -1,14 +1,15 @@
 import { useState } from 'react'
-import { getMaxCards, generateRoundSequence } from '../engine/scoring'
+import { getMaxCards, getDefaultMaxCards, getDefaultMinCards, generateRoundSequence } from '../engine/scoring'
 import { saveGame, generateId } from '../storage'
 
 export default function SetupView({ navigate }) {
   const [playerCount, setPlayerCount] = useState(4)
   const [playerNames, setPlayerNames] = useState(['', '', '', ''])
-  const [minCards, setMinCards] = useState(1)
+  const [maxCards, setMaxCards] = useState(getDefaultMaxCards(4))
+  const [minCards, setMinCards] = useState(getDefaultMinCards(4))
   const [error, setError] = useState('')
 
-  const maxCards = getMaxCards(playerCount)
+  const absoluteMax = getMaxCards(playerCount)
 
   const handlePlayerCountChange = (count) => {
     setPlayerCount(count)
@@ -17,7 +18,10 @@ export default function SetupView({ navigate }) {
       while (next.length < count) next.push('')
       return next.slice(0, count)
     })
-    setMinCards(prev => Math.min(prev, Math.max(1, getMaxCards(count) - 1)))
+    const newMax = getDefaultMaxCards(count)
+    const newMin = getDefaultMinCards(count)
+    setMaxCards(newMax)
+    setMinCards(newMin)
   }
 
   const handleNameChange = (i, val) => {
@@ -36,6 +40,10 @@ export default function SetupView({ navigate }) {
     }
     if (new Set(trimmed.map(n => n.toLowerCase())).size < trimmed.length) {
       setError('Player names must be unique.')
+      return
+    }
+    if (maxCards < 2 || maxCards > absoluteMax) {
+      setError(`Maximum cards must be between 2 and ${absoluteMax}.`)
       return
     }
     if (minCards < 1 || minCards >= maxCards) {
@@ -114,13 +122,44 @@ export default function SetupView({ navigate }) {
         </div>
       </div>
 
+      {/* Max Cards */}
+      <div className="card-surface p-4">
+        <label className="block text-sm font-semibold text-gray-700 mb-1">
+          Maximum Cards per Round
+        </label>
+        <p className="text-xs text-gray-500 mb-3">
+          Absolute max for {playerCount} players is {absoluteMax}. Rounds start here and count down.
+        </p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setMaxCards(c => {
+              const newMax = Math.max(2, c - 1)
+              if (minCards >= newMax) setMinCards(newMax - 1)
+              return newMax
+            })}
+            className="w-10 h-10 rounded-lg border-2 border-gray-200 text-lg font-bold text-gray-500 hover:bg-felt-50 hover:border-felt-400 flex items-center justify-center transition-all"
+          >
+            −
+          </button>
+          <span className="text-2xl font-bold text-felt-700 w-12 text-center font-display">
+            {maxCards}
+          </span>
+          <button
+            onClick={() => setMaxCards(c => Math.min(absoluteMax, c + 1))}
+            className="w-10 h-10 rounded-lg border-2 border-gray-200 text-lg font-bold text-gray-500 hover:bg-felt-50 hover:border-felt-400 flex items-center justify-center transition-all"
+          >
+            +
+          </button>
+        </div>
+      </div>
+
       {/* Min Cards */}
       <div className="card-surface p-4">
         <label className="block text-sm font-semibold text-gray-700 mb-1">
           Minimum Cards per Round
         </label>
         <p className="text-xs text-gray-500 mb-3">
-          Max is {maxCards} cards ({playerCount} players). Rounds go {maxCards} down to min, then back up.
+          Rounds go from {maxCards} down to this minimum, then back up.
         </p>
         <div className="flex items-center gap-3">
           <button

@@ -35,7 +35,7 @@ function NumberInput({ value, onChange, min = 0, max = 99, forbidden = null }) {
   return (
     <div className="flex items-center gap-1.5">
       <button
-        onClick={() => onChange(Math.max(min, (parsed ?? 0) - 1))}
+        onClick={() => onChange(parsed === null ? 0 : Math.max(min, parsed - 1))}
         className="w-9 h-9 rounded-lg border-2 border-gray-200 text-lg font-bold text-gray-500
                    hover:bg-felt-50 hover:border-felt-400 flex items-center justify-center
                    select-none transition-all active:scale-95"
@@ -58,7 +58,7 @@ function NumberInput({ value, onChange, min = 0, max = 99, forbidden = null }) {
         }`}
       />
       <button
-        onClick={() => onChange(Math.min(max, (parsed ?? 0) + 1))}
+        onClick={() => onChange(parsed === null ? 0 : Math.min(max, parsed + 1))}
         className="w-9 h-9 rounded-lg border-2 border-gray-200 text-lg font-bold text-gray-500
                    hover:bg-felt-50 hover:border-felt-400 flex items-center justify-center
                    select-none transition-all active:scale-95"
@@ -224,6 +224,35 @@ export default function GameView({ gameId, navigate }) {
     setError('')
   }
 
+  // --- UNDO LAST ROUND ---
+  const undoLastRound = async () => {
+    if (completedRounds.length === 0) return
+    if (!confirm('Undo the last round? This will let you re-enter the scores.')) return
+
+    const lastRound = completedRounds[completedRounds.length - 1]
+    const newCompletedRounds = completedRounds.slice(0, -1)
+
+    const updatedGame = {
+      ...game,
+      completedRounds: newCompletedRounds,
+      currentRoundIndex: lastRound.roundIndex,
+      phase: 'tricks',
+      currentRoundBids: lastRound.bids,
+      status: 'active',
+      completedAt: null,
+    }
+
+    setGame(updatedGame)
+    await saveGame(updatedGame)
+
+    // Pre-fill the tricks inputs with what was previously entered so they can fix the error
+    const trickInit = {}
+    lastRound.tricks.forEach(t => { trickInit[t.playerId] = String(t.tricks) })
+    setTricksInputs(trickInit)
+    setRoundResult(null)
+    setError('')
+  }
+
   // --- ROUND RESULT OVERLAY ---
   const advanceFromResult = () => {
     setRoundResult(null)
@@ -292,6 +321,13 @@ export default function GameView({ gameId, navigate }) {
 
         <button onClick={advanceFromResult} className="btn-gold w-full py-4 text-lg">
           {roundResult.isGameOver ? 'View Home' : `Start Round ${roundRecord.roundIndex + 2}`}
+        </button>
+
+        <button
+          onClick={undoLastRound}
+          className="w-full text-felt-400 text-sm hover:text-gold-500 transition-colors py-2"
+        >
+          ← Go back and fix this round
         </button>
       </div>
     )
@@ -460,6 +496,16 @@ export default function GameView({ gameId, navigate }) {
         currentRoundIndex={currentRoundIndex}
         totalRounds={totalRounds}
       />
+
+      {/* Undo last round */}
+      {completedRounds.length > 0 && phase === 'bidding' && (
+        <button
+          onClick={undoLastRound}
+          className="w-full text-felt-400 text-xs hover:text-gold-500 transition-colors py-2"
+        >
+          ← Undo last round (fix scoring error)
+        </button>
+      )}
     </div>
   )
 }

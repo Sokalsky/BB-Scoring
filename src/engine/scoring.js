@@ -7,8 +7,21 @@ export const SUIT_DISPLAY = {
   'No Trump': 'No Trump',
 };
 
+/** Absolute maximum cards possible for this player count */
 export function getMaxCards(playerCount) {
   return Math.floor(52 / playerCount);
+}
+
+/** Recommended default max cards (3-player starts at 15 instead of 17) */
+export function getDefaultMaxCards(playerCount) {
+  if (playerCount === 3) return 15;
+  return getMaxCards(playerCount);
+}
+
+/** Recommended default min cards (3-player starts at 3 instead of 1) */
+export function getDefaultMinCards(playerCount) {
+  if (playerCount === 3) return 3;
+  return 1;
 }
 
 /**
