@@ -270,7 +270,7 @@ app.get('/api/stats', async (req, res) => {
 
 // ─── Serve static frontend ──────────────────────────────────
 app.use(express.static(join(__dirname, 'dist')))
-app.get('*', (req, res) => {
+app.get('/{*splat}', (req, res) => {
   res.sendFile(join(__dirname, 'dist', 'index.html'))
 })
 
