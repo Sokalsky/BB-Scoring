@@ -1,0 +1,9 @@
+node_modules
+dist
+.env
+.env.local
+.git
+bugger-bridge.html
+serve.ps1
+setup-firewall.cmd
+start-server.cmd

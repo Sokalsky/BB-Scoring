@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bugger Bridge</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body { background-color: #f3f4f6; }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    // ============================================================
+    // ENGINE — pure functions
+    // ============================================================
+    const TRUMP_SUITS = ['Spades', 'Hearts', 'Diamonds', 'Clubs', 'No Trump'];
+    const SUIT_DISPLAY = {
+      Spades: '♠ Spades', Hearts: '♥ Hearts',
+      Diamonds: '♦ Diamonds', Clubs: '♣ Clubs', 'No Trump': 'No Trump',
+    };
+    const SUIT_ICON = { Spades: '♠', Hearts: '♥', Diamonds: '♦', Clubs: '♣', 'No Trump': 'NT' };
+
+    function getMaxCards(playerCount) {
+      return Math.floor(52 / playerCount);
+    }
+
+    function generateRoundSequence(playerCount, minCards, maxCards) {
+      const seq = [];
+      for (let c = maxCards; c >= minCards; c--) seq.push(c);
+      for (let i = 0; i < playerCount - 1; i++) seq.push(minCards);
+      for (let c = minCards + 1; c <= maxCards; c++) seq.push(c);
+      return seq;
+    }
+
+    function getTrumpForRound(roundIndex) {
+      return TRUMP_SUITS[roundIndex % TRUMP_SUITS.length];
+    }
+
+    function getDealerIndex(roundIndex, playerCount) {
+      return roundIndex % playerCount;
+    }
+
+    // Returns player indices in bidding order: left of dealer first, dealer last.
+    function getBiddingOrder(dealerIndex, playerCount) {
+      return Array.from({ length: playerCount }, (_, i) => (dealerIndex + 1 + i) % playerCount);
+    }
+
+    // The bid value the dealer may NOT choose (would make total bids = cards in round).
+    function getForbiddenDealerBid(otherBids, cardsInRound) {
+      const sum = otherBids.reduce((a, b) => a + b, 0);
+      const forbidden = cardsInRound - sum;
+      return (forbidden >= 0 && forbidden <= cardsInRound) ? forbidden : null;
+    }
+
+    function calculateRoundScore(bid, tricksWon) {
+      return tricksWon + (tricksWon === bid ? 10 : 0);
+    }
+
+    function getCumulativeScores(completedRounds, players) {
+      const totals = Object.fromEntries(players.map(p => [p.id, 0]));
+      completedRounds.forEach(r =>
+        r.scores.forEach(s => { totals[s.playerId] = (totals[s.playerId] || 0) + s.roundScore; })
+      );
+      return totals;
+    }
+
+    function getWinners(game) {
+      const totals = getCumulativeScores(game.completedRounds, game.players);
+      const max = Math.max(...Object.values(totals));
+      return game.players.filter(p => totals[p.id] === max);
+    }
+
+    function computePlayerStats(games) {
+      const statsMap = {};
+      games.filter(g => g.status === 'complete').forEach(game => {
+        const cumScores = getCumulativeScores(game.completedRounds, game.players);
+        const maxScore = Math.max(...Object.values(cumScores));
+        game.players.forEach(player => {
+          if (!statsMap[player.name]) {
+            statsMap[player.name] = {
+              name: player.name, gamesPlayed: 0, wins: 0,
+              totalRounds: 0, bidMatches: 0, totalScore: 0, bestGameScore: 0,
+            };
+          }
+          const s = statsMap[player.name];
+          s.gamesPlayed++;
+          const gs = cumScores[player.id] || 0;
+          if (gs === maxScore) s.wins++;
+          s.totalScore += gs;
+          if (gs > s.bestGameScore) s.bestGameScore = gs;
+          game.completedRounds.forEach(round => {
+            const bidEntry = round.bids.find(b => b.playerId === player.id);
+            const tEntry = round.tricks.find(t => t.playerId === player.id);
+            if (!bidEntry || !tEntry) return;
+            s.totalRounds++;
+            if (bidEntry.bid === tEntry.tricks) s.bidMatches++;
+          });
+        });
+      });
+      return Object.values(statsMap).map(s => ({
+        ...s,
+        winRate: s.gamesPlayed ? ((s.wins / s.gamesPlayed) * 100).toFixed(0) : '0',
+        avgScore: s.gamesPlayed ? (s.totalScore / s.gamesPlayed).toFixed(1) : '0.0',
+        bidAccuracy: s.totalRounds ? ((s.bidMatches / s.totalRounds) * 100).toFixed(0) : '0',
+      })).sort((a, b) => b.gamesPlayed - a.gamesPlayed || b.wins - a.wins);
+    }
+
+    // ============================================================
+    // STORAGE
+    // ============================================================
+    const STORAGE_KEY = 'bugger-bridge-v1';
+
+    function loadData() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : { games: [] };
+      } catch { return { games: [] }; }
+    }
+
+    function saveData(data) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+
+    function loadGames() { return loadData().games; }
+
+    function saveGame(game) {
+      const data = loadData();
+      const idx = data.games.findIndex(g => g.id === game.id);
+      if (idx >= 0) data.games[idx] = game;
+      else data.games.unshift(game);
+      saveData(data);
+    }
+
+    function deleteGame(gameId) {
+      const data = loadData();
+      data.games = data.games.filter(g => g.id !== gameId);
+      saveData(data);
+    }
+
+    function getActiveGame() {
+      return loadGames().find(g => g.status === 'active') || null;
+    }
+
+    function genId() {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    }
+
+    // ============================================================
+    // SHARED COMPONENT: NumberInput
+    // ============================================================
+    function NumberInput({ value, onChange, min = 0, max = 99, forbidden = null }) {
+      const num = value === '' ? null : parseInt(value);
+      const isForbidden = forbidden !== null && num === forbidden;
+      const dec = () => onChange(Math.max(min, (num ?? 0) - 1));
+      const inc = () => onChange(Math.min(max, (num ?? 0) + 1));
+      return (
+        <div className="flex items-center gap-2">
+          <button onClick={dec}
+            className="w-10 h-10 rounded-xl border border-gray-300 text-xl font-bold text-gray-600 hover:bg-gray-100 active:bg-gray-200 flex items-center justify-center select-none">
+            −
+          </button>
+          <input type="number" min={min} max={max} value={value}
+            onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v) && v >= min && v <= max) onChange(v); }}
+            className={`w-14 text-center text-xl font-bold rounded-xl border py-2 focus:outline-none focus:ring-2 ${
+              isForbidden ? 'border-red-400 bg-red-50 text-red-600 ring-red-300' : 'border-gray-300 focus:border-blue-400 ring-blue-300'
+            }`} />
+          <button onClick={inc}
+            className="w-10 h-10 rounded-xl border border-gray-300 text-xl font-bold text-gray-600 hover:bg-gray-100 active:bg-gray-200 flex items-center justify-center select-none">
+            +
+          </button>
+        </div>
+      );
+    }
+
+    // ============================================================
+    // SCOREBOARD COMPONENT
+    // ============================================================
+    function Scoreboard({ players, completedRounds, totalRounds }) {
+      if (completedRounds.length === 0) return null;
+      const finalScores = getCumulativeScores(completedRounds, players);
+      const maxScore = Math.max(...Object.values(finalScores));
+
+      return (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mt-4">
+          <div className="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-600">Results</h3>
+            <span className="text-xs text-gray-400">{completedRounds.length} / {totalRounds} rounds</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="text-xs min-w-full">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="text-left px-3 py-2 font-semibold text-gray-500 whitespace-nowrap">Round</th>
+                  {players.map(p => (
+                    <th key={p.id} colSpan={3}
+                      className={`text-center px-2 py-2 font-bold border-l border-gray-200 whitespace-nowrap ${finalScores[p.id] === maxScore ? 'text-blue-700' : 'text-gray-700'}`}>
+                      {p.name}{finalScores[p.id] === maxScore ? ' ▲' : ''}
+                    </th>
+                  ))}
+                </tr>
+                <tr className="border-b border-gray-200 bg-gray-50">
+                  <th className="px-3 py-1"></th>
+                  {players.map(p => (
+                    <React.Fragment key={p.id}>
+                      <th className="px-2 py-1 text-center text-gray-400 border-l border-gray-200 font-normal">Bid</th>
+                      <th className="px-2 py-1 text-center text-gray-400 font-normal">Won</th>
+                      <th className="px-2 py-1 text-center text-gray-400 font-normal">Total</th>
+                    </React.Fragment>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {completedRounds.map((round, i) => (
+                  <tr key={i} className={i % 2 === 1 ? 'bg-gray-50' : ''}>
+                    <td className="px-3 py-2 whitespace-nowrap text-gray-600 font-medium">
+                      {round.cardsInRound} {SUIT_ICON[round.trumpSuit]}
+                    </td>
+                    {players.map(p => {
+                      const s = round.scores.find(sc => sc.playerId === p.id);
+                      const made = s && s.bid === s.tricks;
+                      const isLeader = s && s.cumulative === Math.max(...round.scores.map(sc => sc.cumulative));
+                      return (
+                        <React.Fragment key={p.id}>
+                          <td className={`px-2 py-2 text-center border-l border-gray-200 ${made ? 'text-green-600 font-semibold' : 'text-gray-500'}`}>
+                            {s?.bid ?? '—'}
+                          </td>
+                          <td className={`px-2 py-2 text-center ${made ? 'text-green-600 font-semibold' : 'text-gray-500'}`}>
+                            {s?.tricks ?? '—'}
+                          </td>
+                          <td className={`px-2 py-2 text-center font-bold ${isLeader ? 'text-blue-700' : 'text-gray-700'}`}>
+                            {s?.cumulative ?? '—'}
+                          </td>
+                        </React.Fragment>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================
+    // HOME VIEW
+    // ============================================================
+    function HomeView({ navigate }) {
+      const [games, setGames] = useState([]);
+      const [activeGame, setActiveGame] = useState(null);
+
+      useEffect(() => {
+        const all = loadGames();
+        setGames(all.filter(g => g.status === 'complete'));
+        setActiveGame(all.find(g => g.status === 'active') || null);
+      }, []);
+
+      const handleDelete = (gameId, e) => {
+        e.stopPropagation();
+        if (!window.confirm('Delete this game permanently?')) return;
+        deleteGame(gameId);
+        setGames(prev => prev.filter(g => g.id !== gameId));
+      };
+
+      const handleAbandon = () => {
+        if (!window.confirm('Abandon the current game? All progress will be lost.')) return;
+        deleteGame(activeGame.id);
+        setActiveGame(null);
+      };
+
+      const fmt = (iso) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
+      return (
+        <div className="space-y-5">
+          {activeGame ? (
+            <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 shadow-sm">
+              <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">Game in Progress</p>
+              <p className="text-sm text-gray-700">{activeGame.players.map(p => p.name).join(', ')}</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Round {activeGame.currentRoundIndex + 1} of {activeGame.roundSequence.length}
+              </p>
+              <div className="flex gap-2 mt-3">
+                <button onClick={() => navigate('game', activeGame.id)}
+                  className="flex-1 bg-blue-600 text-white text-sm py-2.5 rounded-xl font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors">
+                  Resume Game
+                </button>
+                <button onClick={handleAbandon}
+                  className="bg-white text-red-500 border border-red-300 text-sm px-4 py-2.5 rounded-xl font-medium hover:bg-red-50 transition-colors">
+                  Abandon
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => navigate('setup')}
+              className="w-full bg-blue-600 text-white py-4 rounded-2xl text-lg font-bold hover:bg-blue-700 active:bg-blue-800 transition-colors shadow-md">
+              + New Game
+            </button>
+          )}
+
+          {activeGame && (
+            <p className="text-center text-sm text-gray-400">Finish or abandon current game to start a new one.</p>
+          )}
+
+          <div>
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+              {games.length === 0 ? 'No completed games yet' : `Completed Games (${games.length})`}
+            </h2>
+            <div className="space-y-3">
+              {games.map(game => {
+                const scores = getCumulativeScores(game.completedRounds, game.players);
+                const winners = getWinners(game);
+                return (
+                  <div key={game.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs text-gray-400">{fmt(game.createdAt)}</span>
+                          <span className="bg-green-100 text-green-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+                            🏆 {winners.map(w => w.name).join(' & ')}
+                          </span>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                          {[...game.players]
+                            .map(p => ({ ...p, score: scores[p.id] || 0 }))
+                            .sort((a, b) => b.score - a.score)
+                            .map(p => (
+                              <span key={p.id} className="text-sm">
+                                <span className="font-medium text-gray-800">{p.name}</span>
+                                <span className="text-gray-400 ml-1">{p.score}</span>
+                              </span>
+                            ))}
+                        </div>
+                        <p className="text-xs text-gray-300 mt-1.5">
+                          {game.roundSequence.length} rounds · {game.players.length} players
+                        </p>
+                      </div>
+                      <button onClick={(e) => handleDelete(game.id, e)}
+                        className="text-gray-300 hover:text-red-400 text-2xl leading-none shrink-0 mt-0.5">
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================
+    // SETUP VIEW
+    // ============================================================
+    function SetupView({ navigate }) {
+      const [playerCount, setPlayerCount] = useState(4);
+      const [names, setNames] = useState(['', '', '', '']);
+      const [startCards, setStartCards] = useState(getMaxCards(4));
+      const [minCards, setMinCards] = useState(1);
+      const [error, setError] = useState('');
+
+      const absMax = getMaxCards(playerCount);
+      const totalRounds = generateRoundSequence(playerCount, minCards, startCards).length;
+
+      const changeCount = (n) => {
+        const newAbsMax = getMaxCards(n);
+        setPlayerCount(n);
+        setNames(prev => {
+          const next = [...prev];
+          while (next.length < n) next.push('');
+          return next.slice(0, n);
+        });
+        setStartCards(prev => Math.min(prev, newAbsMax));
+        setMinCards(prev => Math.min(prev, newAbsMax - 1));
+      };
+
+      const start = () => {
+        const trimmed = names.slice(0, playerCount).map(n => n.trim());
+        if (trimmed.some(n => !n)) { setError('All player names are required.'); return; }
+        if (new Set(trimmed.map(n => n.toLowerCase())).size < trimmed.length) {
+          setError('Player names must be unique.'); return;
+        }
+        if (minCards < 1 || minCards >= startCards) {
+          setError(`Minimum cards must be between 1 and ${startCards - 1}.`); return;
+        }
+        const players = trimmed.map(name => ({ id: genId(), name }));
+        const game = {
+          id: genId(), status: 'active', createdAt: new Date().toISOString(), completedAt: null,
+          players, minCards, maxCards: startCards, roundSequence: generateRoundSequence(playerCount, minCards, startCards),
+          currentRoundIndex: 0, phase: 'bidding', currentRoundBids: [], completedRounds: [],
+        };
+        saveGame(game);
+        navigate('game', game.id);
+      };
+
+      return (
+        <div className="space-y-5">
+          <h1 className="text-2xl font-bold text-gray-800">New Game</h1>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4">
+            <p className="text-sm font-semibold text-gray-700 mb-3">Number of Players</p>
+            <div className="flex gap-2">
+              {[2,3,4,5,6].map(n => (
+                <button key={n} onClick={() => changeCount(n)}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition-colors ${
+                    playerCount === n ? 'bg-blue-600 text-white border-blue-600' : 'text-gray-700 border-gray-200 hover:border-blue-300'
+                  }`}>
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4">
+            <p className="text-sm font-semibold text-gray-700 mb-3">Player Names</p>
+            <div className="space-y-2">
+              {Array.from({ length: playerCount }, (_, i) => (
+                <input key={i} type="text" placeholder={`Player ${i + 1}`} value={names[i] || ''}
+                  onChange={e => { const n = [...names]; n[i] = e.target.value; setNames(n); setError(''); }}
+                  className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400" />
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4">
+            <p className="text-sm font-semibold text-gray-700 mb-1">Starting Cards per Round</p>
+            <p className="text-xs text-gray-400 mb-3">
+              Maximum for {playerCount} players is {absMax}. Rounds count down from this, then back up.
+            </p>
+            <NumberInput
+              value={startCards}
+              onChange={v => { setStartCards(v); setMinCards(prev => Math.min(prev, v - 1)); setError(''); }}
+              min={minCards + 1} max={absMax}
+            />
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4">
+            <p className="text-sm font-semibold text-gray-700 mb-1">Minimum Cards per Round</p>
+            <p className="text-xs text-gray-400 mb-3">
+              Rounds count down from {startCards} to this minimum, then back up.
+              This game will have <strong>{totalRounds} rounds</strong>.
+            </p>
+            <div className="flex items-center gap-4">
+              <button onClick={() => setMinCards(c => Math.max(1, c - 1))}
+                className="w-11 h-11 rounded-xl border-2 border-gray-200 text-xl font-bold text-gray-600 hover:bg-gray-50 flex items-center justify-center">−</button>
+              <span className="text-3xl font-bold text-gray-800 w-10 text-center">{minCards}</span>
+              <button onClick={() => setMinCards(c => Math.min(startCards - 1, c + 1))}
+                className="w-11 h-11 rounded-xl border-2 border-gray-200 text-xl font-bold text-gray-600 hover:bg-gray-50 flex items-center justify-center">+</button>
+            </div>
+          </div>
+
+          {error && (
+            <div className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-4 py-3">{error}</div>
+          )}
+
+          <button onClick={start}
+            className="w-full bg-blue-600 text-white py-4 rounded-2xl text-lg font-bold hover:bg-blue-700 active:bg-blue-800 transition-colors shadow-md">
+            Start Game
+          </button>
+          <button onClick={() => navigate('home')}
+            className="w-full text-gray-400 text-sm py-2 hover:text-gray-600 transition-colors">Cancel</button>
+        </div>
+      );
+    }
+
+    // ============================================================
+    // GAME VIEW
+    // ============================================================
+    function GameView({ gameId, navigate }) {
+      const [game, setGame] = useState(null);
+      const [bidInputs, setBidInputs] = useState({});
+      const [tricksInputs, setTricksInputs] = useState({});
+      const [error, setError] = useState('');
+      const [roundResult, setRoundResult] = useState(null);
+
+      useEffect(() => {
+        const found = loadGames().find(g => g.id === gameId);
+        if (!found) { navigate('home'); return; }
+        setGame(found);
+        if (found.phase === 'bidding') {
+          const init = Object.fromEntries(found.players.map(p => [p.id, '']));
+          found.currentRoundBids.forEach(b => { init[b.playerId] = String(b.bid); });
+          setBidInputs(init);
+        } else {
+          setTricksInputs(Object.fromEntries(found.players.map(p => [p.id, ''])));
+        }
+      }, [gameId]);
+
+      if (!game) return null;
+
+      const { players, roundSequence, currentRoundIndex, phase, completedRounds } = game;
+      const totalRounds = roundSequence.length;
+      const cardsInRound = roundSequence[currentRoundIndex];
+      const trump = getTrumpForRound(currentRoundIndex);
+      const dealerIndex = getDealerIndex(currentRoundIndex, players.length);
+      const dealer = players[dealerIndex];
+      const biddingOrder = getBiddingOrder(dealerIndex, players.length);
+
+      // Dealer's forbidden bid — computed from non-dealer bids already entered
+      const forbiddenDealerBid = (() => {
+        const nonDealerIndices = biddingOrder.slice(0, -1);
+        const others = nonDealerIndices.map(idx => {
+          const v = parseInt(bidInputs[players[idx].id]);
+          return isNaN(v) ? 0 : v;
+        });
+        return getForbiddenDealerBid(others, cardsInRound);
+      })();
+
+      const submitBids = () => {
+        const bids = players.map(p => ({ playerId: p.id, bid: parseInt(bidInputs[p.id]) }));
+        for (const b of bids) {
+          if (isNaN(b.bid) || b.bid < 0 || b.bid > cardsInRound) {
+            setError(`All bids must be between 0 and ${cardsInRound}.`); return;
+          }
+        }
+        const dealerBid = bids.find(b => b.playerId === dealer.id)?.bid;
+        const otherBids = bids.filter(b => b.playerId !== dealer.id).map(b => b.bid);
+        const forbidden = getForbiddenDealerBid(otherBids, cardsInRound);
+        if (forbidden !== null && dealerBid === forbidden) {
+          setError(`${dealer.name} (dealer) cannot bid ${forbidden} — that makes total bids equal cards in round.`); return;
+        }
+        const updated = { ...game, phase: 'tricks', currentRoundBids: bids };
+        setGame(updated); saveGame(updated);
+        setTricksInputs(Object.fromEntries(players.map(p => [p.id, ''])));
+        setError('');
+      };
+
+      const tricksTotal = players.reduce((sum, p) => {
+        const v = parseInt(tricksInputs[p.id]); return sum + (isNaN(v) ? 0 : v);
+      }, 0);
+
+      const submitTricks = () => {
+        const tricks = players.map(p => ({ playerId: p.id, tricks: parseInt(tricksInputs[p.id]) }));
+        for (const t of tricks) {
+          if (isNaN(t.tricks) || t.tricks < 0 || t.tricks > cardsInRound) {
+            setError(`All trick counts must be 0–${cardsInRound}.`); return;
+          }
+        }
+        if (tricksTotal !== cardsInRound) {
+          setError(`Tricks must sum to ${cardsInRound}. Currently ${tricksTotal}.`); return;
+        }
+        const cumScores = getCumulativeScores(completedRounds, players);
+        const scores = players.map(p => {
+          const bid = game.currentRoundBids.find(b => b.playerId === p.id)?.bid ?? 0;
+          const tw = tricks.find(t => t.playerId === p.id)?.tricks ?? 0;
+          const roundScore = calculateRoundScore(bid, tw);
+          return { playerId: p.id, bid, tricks: tw, roundScore, cumulative: (cumScores[p.id] || 0) + roundScore };
+        });
+        const roundRecord = {
+          roundIndex: currentRoundIndex, cardsInRound, trumpSuit: trump, dealerIndex,
+          bids: game.currentRoundBids, tricks, scores,
+        };
+        const newCompleted = [...completedRounds, roundRecord];
+        const nextIndex = currentRoundIndex + 1;
+        const isOver = nextIndex >= totalRounds;
+        const updated = {
+          ...game, completedRounds: newCompleted, currentRoundIndex: nextIndex,
+          phase: 'bidding', currentRoundBids: [],
+          status: isOver ? 'complete' : 'active',
+          completedAt: isOver ? new Date().toISOString() : null,
+        };
+        setGame(updated); saveGame(updated);
+        setRoundResult({ scores, roundRecord, isOver, winners: isOver ? getWinners(updated) : null });
+        setError('');
+      };
+
+      const advanceFromResult = () => {
+        if (roundResult.isOver) { navigate('home'); return; }
+        setRoundResult(null);
+        setBidInputs(Object.fromEntries(players.map(p => [p.id, ''])));
+      };
+
+      // --- ROUND RESULT ---
+      if (roundResult) {
+        const { scores, roundRecord, isOver, winners } = roundResult;
+        return (
+          <div className="space-y-5">
+            {isOver ? (
+              <div className="bg-green-50 border border-green-300 rounded-2xl p-5 text-center">
+                <p className="text-4xl mb-2">🏆</p>
+                <h2 className="text-xl font-bold text-green-800">Game Over!</h2>
+                <p className="text-green-700 mt-1 font-semibold text-lg">
+                  {winners.length === 1 ? `${winners[0].name} wins!` : `Tie: ${winners.map(w => w.name).join(' & ')} win!`}
+                </p>
+              </div>
+            ) : (
+              <h2 className="text-xl font-bold text-gray-800">Round {roundRecord.roundIndex + 1} Results</h2>
+            )}
+
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Player</th>
+                    <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">Bid</th>
+                    <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">Won</th>
+                    <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">+Pts</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scores.map(s => {
+                    const p = players.find(pl => pl.id === s.playerId);
+                    const made = s.bid === s.tricks;
+                    return (
+                      <tr key={s.playerId} className={made ? 'bg-green-50' : ''}>
+                        <td className="px-4 py-3 font-medium text-gray-800">
+                          {p?.name}{made && <span className="ml-1 text-green-500 text-xs font-bold">✓</span>}
+                        </td>
+                        <td className="px-3 py-3 text-right text-gray-500">{s.bid}</td>
+                        <td className="px-3 py-3 text-right text-gray-500">{s.tricks}</td>
+                        <td className={`px-3 py-3 text-right font-bold ${made ? 'text-green-600' : 'text-gray-700'}`}>+{s.roundScore}</td>
+                        <td className="px-4 py-3 text-right font-bold text-gray-800">{s.cumulative}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <button onClick={advanceFromResult}
+              className="w-full bg-blue-600 text-white py-4 rounded-2xl text-lg font-bold hover:bg-blue-700 active:bg-blue-800 transition-colors shadow-md">
+              {isOver ? 'Back to Home' : `Start Round ${roundRecord.roundIndex + 2}`}
+            </button>
+          </div>
+        );
+      }
+
+      // --- ACTIVE GAME ---
+      return (
+        <div className="space-y-4">
+          {/* Round header */}
+          <div className="bg-blue-700 text-white rounded-2xl p-4 shadow">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-blue-300 text-xs font-medium uppercase tracking-wide">
+                  Round {currentRoundIndex + 1} of {totalRounds}
+                </p>
+                <p className="text-2xl font-bold mt-0.5">{SUIT_DISPLAY[trump]}</p>
+                <p className="text-blue-300 text-sm mt-1">
+                  Dealer: <span className="text-white font-semibold">{dealer.name}</span>
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-blue-300 text-xs">Cards</p>
+                <p className="text-4xl font-black">{cardsInRound}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Bidding */}
+          {phase === 'bidding' && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4">
+              <h2 className="text-base font-bold text-gray-800">Enter Bids</h2>
+              <p className="text-xs text-gray-400 mt-0.5 mb-4">
+                Order: left of dealer first · {dealer.name} bids last
+              </p>
+              <div className="space-y-4">
+                {biddingOrder.map((pidx) => {
+                  const p = players[pidx];
+                  const isDealer = pidx === dealerIndex;
+                  const curVal = parseInt(bidInputs[p.id]);
+                  const isForbid = isDealer && forbiddenDealerBid !== null && curVal === forbiddenDealerBid;
+                  return (
+                    <div key={p.id} className="flex items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-semibold text-gray-800 text-sm">{p.name}</span>
+                          {isDealer && (
+                            <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">Dealer</span>
+                          )}
+                        </div>
+                        {isDealer && forbiddenDealerBid !== null && (
+                          <p className={`text-xs mt-0.5 ${isForbid ? 'text-red-600 font-semibold' : 'text-gray-400'}`}>
+                            Cannot bid {forbiddenDealerBid}
+                          </p>
+                        )}
+                      </div>
+                      <NumberInput
+                        value={bidInputs[p.id] ?? ''}
+                        onChange={v => { setBidInputs(prev => ({ ...prev, [p.id]: String(v) })); setError(''); }}
+                        min={0} max={cardsInRound}
+                        forbidden={isDealer ? forbiddenDealerBid : null}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              {error && <p className="mt-3 text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-3 py-2">{error}</p>}
+              <button onClick={submitBids}
+                className="mt-4 w-full bg-blue-600 text-white py-3.5 rounded-2xl font-bold hover:bg-blue-700 active:bg-blue-800 transition-colors">
+                Submit Bids →
+              </button>
+            </div>
+          )}
+
+          {/* Tricks */}
+          {phase === 'tricks' && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4">
+              <div className="flex items-center justify-between mb-1">
+                <h2 className="text-base font-bold text-gray-800">Enter Tricks Won</h2>
+                <span className={`text-sm font-bold px-2.5 py-1 rounded-full ${
+                  tricksTotal === cardsInRound ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                }`}>
+                  {tricksTotal} / {cardsInRound}
+                </span>
+              </div>
+              <p className="text-xs text-gray-400 mb-4">Must total exactly {cardsInRound}</p>
+              <div className="space-y-4">
+                {biddingOrder.map((pidx) => {
+                  const p = players[pidx];
+                  const bid = game.currentRoundBids.find(b => b.playerId === p.id)?.bid;
+                  return (
+                    <div key={p.id} className="flex items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-800 text-sm">{p.name}</p>
+                        <p className="text-xs text-gray-400">Bid: {bid ?? '?'}</p>
+                      </div>
+                      <NumberInput
+                        value={tricksInputs[p.id] ?? ''}
+                        onChange={v => { setTricksInputs(prev => ({ ...prev, [p.id]: String(v) })); setError(''); }}
+                        min={0} max={cardsInRound}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              {error && <p className="mt-3 text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-3 py-2">{error}</p>}
+              <button onClick={submitTricks} disabled={tricksTotal !== cardsInRound}
+                className={`mt-4 w-full py-3.5 rounded-2xl font-bold transition-colors ${
+                  tricksTotal === cardsInRound
+                    ? 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                }`}>
+                Submit Round
+              </button>
+            </div>
+          )}
+
+          <Scoreboard players={players} completedRounds={completedRounds} totalRounds={totalRounds} />
+        </div>
+      );
+    }
+
+    // ============================================================
+    // STATS VIEW
+    // ============================================================
+    function StatsView({ navigate }) {
+      const stats = useMemo(() => computePlayerStats(loadGames()), []);
+
+      if (stats.length === 0) {
+        return (
+          <div className="text-center py-16 text-gray-400">
+            <p className="text-5xl mb-4">📊</p>
+            <p className="text-lg font-semibold">No stats yet</p>
+            <p className="text-sm mt-1">Complete a game to see player statistics.</p>
+          </div>
+        );
+      }
+
+      const cols = [
+        { key: 'gamesPlayed', label: 'Games' },
+        { key: 'wins', label: 'Wins' },
+        { key: 'winRate', label: 'Win %' },
+        { key: 'avgScore', label: 'Avg Score' },
+        { key: 'bestGameScore', label: 'Best' },
+        { key: 'bidAccuracy', label: 'Bid Acc %' },
+      ];
+
+      return (
+        <div className="space-y-5">
+          <h1 className="text-2xl font-bold text-gray-800">Player Statistics</h1>
+
+          {/* Cards for mobile */}
+          <div className="space-y-3">
+            {stats.map(s => (
+              <div key={s.name} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4">
+                <p className="font-bold text-gray-800 text-base mb-3">{s.name}</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {cols.map(col => (
+                    <div key={col.key} className="text-center">
+                      <p className="text-xs text-gray-400">{col.label}</p>
+                      <p className="text-xl font-bold text-gray-800 mt-0.5">{s[col.key]}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-xs text-gray-400 text-center">
+            Bid Acc % = rounds where tricks won matched the bid
+          </p>
+        </div>
+      );
+    }
+
+    // ============================================================
+    // APP
+    // ============================================================
+    function App() {
+      const [view, setView] = useState('home');
+      const [gameId, setGameId] = useState(null);
+
+      useEffect(() => {
+        const active = getActiveGame();
+        if (active) { setGameId(active.id); setView('game'); }
+      }, []);
+
+      const navigate = (v, id = null) => {
+        setView(v);
+        if (id !== null) setGameId(id);
+      };
+
+      return (
+        <div className="min-h-screen bg-gray-100">
+          <header className="bg-blue-700 text-white shadow-lg sticky top-0 z-10">
+            <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
+              <button onClick={() => navigate('home')}
+                className="text-xl font-black tracking-tight hover:text-blue-200 transition-colors">
+                🃏 Bugger Bridge
+              </button>
+              <button onClick={() => navigate('stats')}
+                className="text-sm font-semibold hover:text-blue-200 transition-colors">
+                Stats
+              </button>
+            </div>
+          </header>
+          <main className="max-w-lg mx-auto px-4 py-5">
+            {view === 'home' && <HomeView navigate={navigate} />}
+            {view === 'setup' && <SetupView navigate={navigate} />}
+            {view === 'game' && <GameView gameId={gameId} navigate={navigate} />}
+            {view === 'stats' && <StatsView navigate={navigate} />}
+          </main>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
