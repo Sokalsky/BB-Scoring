@@ -450,7 +450,8 @@ export default function GameView({ gameId, navigate }) {
           </div>
 
           <div className="space-y-3">
-            {players.map(player => {
+            {biddingOrder.map(playerIdx => {
+              const player = players[playerIdx]
               const bid = game.currentRoundBids.find(b => b.playerId === player.id)?.bid ?? '?'
               return (
                 <div key={player.id} className="flex items-center justify-between gap-3 py-1">
