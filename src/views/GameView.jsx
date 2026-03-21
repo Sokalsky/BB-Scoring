@@ -42,21 +42,28 @@ function NumberInput({ value, onChange, min = 0, max = 99, forbidden = null, suf
       >
         −
       </button>
-      <input
-        type="number"
-        min={min}
-        max={max}
-        value={value}
-        onChange={e => {
-          const v = parseInt(e.target.value)
-          if (!isNaN(v) && v >= min && v <= max) onChange(v)
-        }}
-        className={`w-14 text-center text-lg font-bold rounded-lg border-2 py-1.5 focus:outline-none transition-all ${
-          isForbidden
-            ? 'border-card-red bg-red-50 text-card-red focus:ring-2 focus:ring-red-300'
-            : 'border-gray-200 text-gray-800 focus:border-felt-500 focus:ring-2 focus:ring-felt-500/30'
-        }`}
-      />
+      <div className={`relative flex items-center justify-center rounded-lg border-2 py-1.5 transition-all ${
+        suffix != null ? 'w-20' : 'w-14'
+      } ${
+        isForbidden
+          ? 'border-card-red bg-red-50'
+          : 'border-gray-200 focus-within:border-felt-500 focus-within:ring-2 focus-within:ring-felt-500/30'
+      }`}>
+        <input
+          type="number"
+          min={min}
+          max={max}
+          value={value}
+          onChange={e => {
+            const v = parseInt(e.target.value)
+            if (!isNaN(v) && v >= min && v <= max) onChange(v)
+          }}
+          className={`bg-transparent text-center text-lg font-bold focus:outline-none ${
+            suffix != null ? 'w-8 text-right' : 'w-full'
+          } ${isForbidden ? 'text-card-red' : 'text-gray-800'}`}
+        />
+        {suffix != null && <span className="text-gray-400 font-bold text-base ml-0.5">/{suffix}</span>}
+      </div>
       <button
         onClick={() => onChange(parsed === null ? 0 : Math.min(max, parsed + 1))}
         className="w-9 h-9 rounded-lg border-2 border-gray-200 text-lg font-bold text-gray-500
@@ -65,7 +72,6 @@ function NumberInput({ value, onChange, min = 0, max = 99, forbidden = null, suf
       >
         +
       </button>
-      {suffix != null && <span className="text-gray-400 font-bold text-base ml-1 w-8">/{suffix}</span>}
     </div>
   )
 }
