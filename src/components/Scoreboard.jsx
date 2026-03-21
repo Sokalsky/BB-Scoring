@@ -66,13 +66,13 @@ export default function Scoreboard({ players, completedRounds, currentRoundIndex
           <h3 className="text-sm font-semibold text-white font-display tracking-wide">Full Scoresheet</h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="text-xs min-w-full">
+          <table className="min-w-full text-[10px] sm:text-xs">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left px-3 py-2 font-semibold text-gray-500 whitespace-nowrap">Round</th>
+                <th className="text-left px-1.5 sm:px-3 py-2 font-semibold text-gray-500 whitespace-nowrap">Round</th>
                 {players.map(p => (
                   <th key={p.id} colSpan={3}
-                    className={`text-center px-2 py-2 font-bold border-l border-gray-200 whitespace-nowrap ${
+                    className={`text-center px-1 sm:px-2 py-2 font-bold border-l border-gray-200 whitespace-nowrap ${
                       cumulativeScores[p.id] === maxScore ? 'text-felt-600' : 'text-gray-700'
                     }`}>
                     {p.name}{cumulativeScores[p.id] === maxScore ? ' ♛' : ''}
@@ -83,9 +83,9 @@ export default function Scoreboard({ players, completedRounds, currentRoundIndex
                 <th className="px-3 py-1"></th>
                 {players.map(p => (
                   <React.Fragment key={p.id}>
-                    <th className="px-2 py-1 text-center text-gray-400 border-l border-gray-200 font-normal">Bid</th>
-                    <th className="px-2 py-1 text-center text-gray-400 font-normal">Won</th>
-                    <th className="px-2 py-1 text-center text-gray-400 font-normal">Total</th>
+                    <th className="px-1 sm:px-2 py-1 text-center text-gray-400 border-l border-gray-200 font-normal">Bid</th>
+                    <th className="px-1 sm:px-2 py-1 text-center text-gray-400 font-normal">Won</th>
+                    <th className="px-1 sm:px-2 py-1 text-center text-gray-400 font-normal">Total</th>
                   </React.Fragment>
                 ))}
               </tr>
@@ -102,7 +102,7 @@ export default function Scoreboard({ players, completedRounds, currentRoundIndex
                   const maxCum = Math.max(...players.map(p => runningTotals[p.id]))
                   return (
                     <tr key={i} className={i % 2 === 1 ? 'bg-gray-50/50' : ''}>
-                      <td className="px-3 py-2 whitespace-nowrap text-gray-600 font-medium">
+                      <td className="px-1.5 sm:px-3 py-1.5 sm:py-2 whitespace-nowrap text-gray-600 font-medium">
                         {round.cardsInRound} {SUIT_ICON[round.trumpSuit]}
                       </td>
                       {players.map(p => {
@@ -112,13 +112,13 @@ export default function Scoreboard({ players, completedRounds, currentRoundIndex
                         const isLeader = cumTotal === maxCum
                         return (
                           <React.Fragment key={p.id}>
-                            <td className={`px-2 py-2 text-center border-l border-gray-200 ${made ? 'text-green-600 font-semibold' : 'text-gray-500'}`}>
+                            <td className={`px-1 sm:px-2 py-1.5 sm:py-2 text-center border-l border-gray-200 ${made ? 'text-green-600 font-semibold' : 'text-gray-500'}`}>
                               {s?.bid ?? '—'}
                             </td>
-                            <td className={`px-2 py-2 text-center ${made ? 'text-green-600 font-semibold' : 'text-gray-500'}`}>
+                            <td className={`px-1 sm:px-2 py-1.5 sm:py-2 text-center ${made ? 'text-green-600 font-semibold' : 'text-gray-500'}`}>
                               {s?.tricks ?? '—'}
                             </td>
-                            <td className={`px-2 py-2 text-center font-bold ${isLeader ? 'text-felt-600' : 'text-gray-700'}`}>
+                            <td className={`px-1 sm:px-2 py-1.5 sm:py-2 text-center font-bold ${isLeader ? 'text-felt-600' : 'text-gray-700'}`}>
                               {cumTotal}
                             </td>
                           </React.Fragment>
