@@ -443,6 +443,7 @@ export default function GameView({ gameId, navigate }) {
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-gray-800 text-sm truncate">
                       {player.name}
+                      <span className="text-gray-400 font-normal ml-1">({cumulativeScores[player.id] || 0})</span>
                       {isDealer && (
                         <span className="ml-1.5 text-xs bg-gold-100 text-gold-700 px-1.5 py-0.5 rounded-full font-semibold border border-gold-200">
                           Dealer
@@ -505,7 +506,10 @@ export default function GameView({ gameId, navigate }) {
               return (
                 <div key={player.id} className="flex items-center justify-between gap-3 py-1">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-800 text-sm truncate">{player.name}</p>
+                    <p className="font-medium text-gray-800 text-sm truncate">
+                      {player.name}
+                      <span className="text-gray-400 font-normal ml-1">({cumulativeScores[player.id] || 0})</span>
+                    </p>
                     <p className="text-xs text-gray-400">Bid: {bid}</p>
                   </div>
                   <NumberInput
