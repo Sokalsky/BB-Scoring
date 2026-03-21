@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { loadGames } from '../storage'
 import { computePlayerStats } from '../engine/scoring'
 
-function KPICard({ label, value, sublabel, icon }) {
+function KPICard({ label, value, sublabel }) {
   return (
     <div className="felt-surface p-3 border border-felt-600/30 flex-1 min-w-0">
       <p className="text-felt-400 text-[10px] sm:text-xs uppercase tracking-wider mb-1">{label}</p>
@@ -105,7 +105,7 @@ export default function StatsView({ navigate }) {
     loadGames().then(setGames)
   }, [])
 
-  // Compute stats for each tab
+  // ALL hooks must be called before any early returns
   const allStats = useMemo(() => {
     if (!games) return null
     return computePlayerStats(games)
@@ -113,16 +113,33 @@ export default function StatsView({ navigate }) {
 
   const threePlayerStats = useMemo(() => {
     if (!games) return null
-    const filtered = games.filter(g => g.players.length === 3)
-    return computePlayerStats(filtered)
+    return computePlayerStats(games.filter(g => g.players.length === 3))
   }, [games])
 
   const fourPlayerStats = useMemo(() => {
     if (!games) return null
-    const filtered = games.filter(g => g.players.length === 4)
-    return computePlayerStats(filtered)
+    return computePlayerStats(games.filter(g => g.players.length === 4))
   }, [games])
 
+  const currentStats = useMemo(() => {
+    if (activeTab === '3p') return threePlayerStats
+    if (activeTab === '4p') return fourPlayerStats
+    return allStats
+  }, [activeTab, allStats, threePlayerStats, fourPlayerStats])
+
+  const kpis = useMemo(() => {
+    if (!currentStats || currentStats.length === 0) return null
+
+    const mostWins = [...currentStats].sort((a, b) => b.wins - a.wins)[0]
+    const highestAcc = [...currentStats].filter(s => s.totalRounds >= 5).sort((a, b) => parseInt(b.bidAccuracy) - parseInt(a.bidAccuracy))[0]
+      || [...currentStats].sort((a, b) => parseInt(b.bidAccuracy) - parseInt(a.bidAccuracy))[0]
+    const highestScore = [...currentStats].sort((a, b) => b.bestGameScore - a.bestGameScore)[0]
+    const mostBidCorrectly = [...currentStats].sort((a, b) => b.bidMatches - a.bidMatches)[0]
+
+    return { mostWins, highestAcc, highestScore, mostBidCorrectly }
+  }, [currentStats])
+
+  // Early returns AFTER all hooks
   if (!allStats) {
     return (
       <div className="text-center py-16 text-felt-400">
@@ -153,25 +170,6 @@ export default function StatsView({ navigate }) {
     { id: '3p', label: '3 Player' },
     { id: '4p', label: '4 Player' },
   ]
-
-  const currentStats = useMemo(() => {
-    if (activeTab === '3p') return threePlayerStats
-    if (activeTab === '4p') return fourPlayerStats
-    return allStats
-  }, [activeTab, allStats, threePlayerStats, fourPlayerStats])
-
-  // Compute KPIs from current stats
-  const kpis = useMemo(() => {
-    if (!currentStats || currentStats.length === 0) return null
-
-    const mostWins = [...currentStats].sort((a, b) => b.wins - a.wins)[0]
-    const highestAcc = [...currentStats].filter(s => s.totalRounds >= 5).sort((a, b) => parseInt(b.bidAccuracy) - parseInt(a.bidAccuracy))[0]
-      || [...currentStats].sort((a, b) => parseInt(b.bidAccuracy) - parseInt(a.bidAccuracy))[0]
-    const highestScore = [...currentStats].sort((a, b) => b.bestGameScore - a.bestGameScore)[0]
-    const mostBidCorrectly = [...currentStats].sort((a, b) => b.bidMatches - a.bidMatches)[0]
-
-    return { mostWins, highestAcc, highestScore, mostBidCorrectly }
-  }, [currentStats])
 
   return (
     <div className="space-y-5">
