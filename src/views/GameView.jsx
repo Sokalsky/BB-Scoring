@@ -28,7 +28,7 @@ const SUIT_ICONS = {
   'No Trump': '★',
 }
 
-function NumberInput({ value, onChange, min = 0, max = 99, forbidden = null }) {
+function NumberInput({ value, onChange, min = 0, max = 99, forbidden = null, suffix = null }) {
   const parsed = value === '' ? null : parseInt(value)
   const isForbidden = forbidden !== null && parsed === forbidden
 
@@ -57,6 +57,7 @@ function NumberInput({ value, onChange, min = 0, max = 99, forbidden = null }) {
             : 'border-gray-200 text-gray-800 focus:border-felt-500 focus:ring-2 focus:ring-felt-500/30'
         }`}
       />
+      {suffix && <span className="text-gray-400 font-bold text-lg">/ {suffix}</span>}
       <button
         onClick={() => onChange(parsed === null ? 0 : Math.min(max, parsed + 1))}
         className="w-9 h-9 rounded-lg border-2 border-gray-200 text-lg font-bold text-gray-500
@@ -517,6 +518,7 @@ export default function GameView({ gameId, navigate }) {
                     onChange={val => handleTricksChange(player.id, val)}
                     min={0}
                     max={cardsInRound}
+                    suffix={bid}
                   />
                 </div>
               )
