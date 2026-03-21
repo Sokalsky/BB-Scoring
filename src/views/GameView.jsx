@@ -83,7 +83,7 @@ export default function GameView({ gameId, navigate }) {
       setGame(found)
       if (found.phase === 'bidding') {
         const init = {}
-        found.players.forEach(p => { init[p.id] = '' })
+        found.players.forEach(p => { init[p.id] = '0' })
         found.currentRoundBids.forEach(b => { init[b.playerId] = String(b.bid) })
         setBidInputs(init)
       } else {
@@ -259,7 +259,7 @@ export default function GameView({ gameId, navigate }) {
     if (roundResult?.isGameOver) {
       navigate('home')
     } else {
-      setBidInputs(Object.fromEntries(players.map(p => [p.id, ''])))
+      setBidInputs(Object.fromEntries(players.map(p => [p.id, '0'])))
     }
   }
 
@@ -347,9 +347,20 @@ export default function GameView({ gameId, navigate }) {
               {trump}
             </p>
           </div>
-          <div className="text-right">
-            <p className="text-felt-100 text-xs uppercase tracking-wider">Cards</p>
-            <p className="text-3xl font-bold text-white font-display">{cardsInRound}</p>
+          <div className="flex items-center gap-6">
+            <div className="text-right">
+              <p className="text-felt-100 text-xs uppercase tracking-wider">Total Bid</p>
+              <p className="text-3xl font-bold text-white font-display">
+                {phase === 'bidding'
+                  ? players.reduce((sum, p) => { const v = parseInt(bidInputs[p.id]); return sum + (isNaN(v) ? 0 : v) }, 0)
+                  : (game.currentRoundBids || []).reduce((sum, b) => sum + b.bid, 0)
+                }
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-felt-100 text-xs uppercase tracking-wider">Cards</p>
+              <p className="text-3xl font-bold text-white font-display">{cardsInRound}</p>
+            </div>
           </div>
         </div>
         <div className="mt-3 pt-3 border-t border-felt-400/40 flex items-center justify-between">
