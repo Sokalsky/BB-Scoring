@@ -154,7 +154,11 @@ export default function StatsView({ navigate }) {
     { id: '4p', label: '4 Player' },
   ]
 
-  const currentStats = activeTab === '3p' ? threePlayerStats : activeTab === '4p' ? fourPlayerStats : allStats
+  const currentStats = useMemo(() => {
+    if (activeTab === '3p') return threePlayerStats
+    if (activeTab === '4p') return fourPlayerStats
+    return allStats
+  }, [activeTab, allStats, threePlayerStats, fourPlayerStats])
 
   // Compute KPIs from current stats
   const kpis = useMemo(() => {
