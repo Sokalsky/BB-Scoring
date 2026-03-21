@@ -76,6 +76,7 @@ export default function GameView({ gameId, navigate }) {
   const [error, setError] = useState('')
   const [roundResult, setRoundResult] = useState(null)
 
+  // Load game initially
   useEffect(() => {
     loadGames().then(allGames => {
       const found = allGames.find(g => g.id === gameId)
@@ -93,6 +94,43 @@ export default function GameView({ gameId, navigate }) {
       }
     })
   }, [gameId])
+
+  // Poll for real-time sync across devices (every 3s)
+  useEffect(() => {
+    if (!game) return
+    const interval = setInterval(async () => {
+      try {
+        const allGames = await loadGames()
+        const latest = allGames.find(g => g.id === gameId)
+        if (!latest) return
+
+        // Only update if the server state has meaningfully changed
+        const changed =
+          latest.currentRoundIndex !== game.currentRoundIndex ||
+          latest.phase !== game.phase ||
+          latest.completedRounds.length !== game.completedRounds.length ||
+          latest.status !== game.status
+
+        if (changed) {
+          setGame(latest)
+          // Reset inputs to match the new state
+          if (latest.phase === 'bidding') {
+            const init = {}
+            latest.players.forEach(p => { init[p.id] = '0' })
+            latest.currentRoundBids.forEach(b => { init[b.playerId] = String(b.bid) })
+            setBidInputs(init)
+          } else {
+            const init = {}
+            latest.players.forEach(p => { init[p.id] = '0' })
+            setTricksInputs(init)
+          }
+          setRoundResult(null)
+          setError('')
+        }
+      } catch { /* ignore poll errors silently */ }
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [game?.currentRoundIndex, game?.phase, game?.completedRounds?.length, game?.status, gameId])
 
   if (!game) {
     return (
