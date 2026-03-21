@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { loadGames, deleteGame } from '../storage'
 import { getCumulativeScores, getWinners } from '../engine/scoring'
+import Scoreboard from '../components/Scoreboard'
 
 function formatDate(isoString) {
   return new Date(isoString).toLocaleDateString(undefined, {
@@ -21,6 +22,7 @@ export default function HomeView({ navigate }) {
   const [games, setGames] = useState([])
   const [activeGame, setActiveGame] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [expandedGameId, setExpandedGameId] = useState(null)
 
   useEffect(() => {
     loadGames().then(all => {
@@ -127,41 +129,59 @@ export default function HomeView({ navigate }) {
               const winners = getWinners(game)
               const winnerNames = winners.map(w => w.name).join(' & ')
 
+              const isExpanded = expandedGameId === game.id
+
               return (
                 <div
                   key={game.id}
-                  className="card-surface p-4 hover:shadow-card-hover transition-shadow"
+                  className="card-surface overflow-hidden hover:shadow-card-hover transition-shadow"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-medium text-gray-500">
-                          {formatDate(game.createdAt)}
-                        </span>
-                        <span className="bg-gold-100 text-gold-700 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-gold-200">
-                          ♛ {winnerNames}
-                        </span>
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-                        {game.players.map(p => (
-                          <span key={p.id} className="text-sm text-gray-600">
-                            <span className="font-medium">{p.name}</span>
-                            <span className="text-gray-400 ml-1">{scores[p.id]}</span>
+                  <div
+                    className="p-4 cursor-pointer"
+                    onClick={() => setExpandedGameId(isExpanded ? null : game.id)}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-medium text-gray-500">
+                            {formatDate(game.createdAt)}
                           </span>
-                        ))}
+                          <span className="bg-gold-100 text-gold-700 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-gold-200">
+                            ♛ {winnerNames}
+                          </span>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                          {game.players.map(p => (
+                            <span key={p.id} className="text-sm text-gray-600">
+                              <span className="font-medium">{p.name}</span>
+                              <span className="text-gray-400 ml-1">{scores[p.id]}</span>
+                            </span>
+                          ))}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1.5">
+                          {game.roundSequence.length} rounds · {game.players.length} players
+                          <span className="ml-2 text-felt-500">{isExpanded ? '▲ Hide' : '▼ View scoresheet'}</span>
+                        </p>
                       </div>
-                      <p className="text-xs text-gray-400 mt-1.5">
-                        {game.roundSequence.length} rounds · {game.players.length} players
-                      </p>
+                      <button
+                        onClick={(e) => handleDelete(game.id, e)}
+                        className="text-gray-300 hover:text-card-red transition-colors text-lg leading-none shrink-0 p-1"
+                        title="Delete game"
+                      >
+                        ×
+                      </button>
                     </div>
-                    <button
-                      onClick={(e) => handleDelete(game.id, e)}
-                      className="text-gray-300 hover:text-card-red transition-colors text-lg leading-none shrink-0 p-1"
-                      title="Delete game"
-                    >
-                      ×
-                    </button>
                   </div>
+                  {isExpanded && (
+                    <div className="border-t border-gray-200">
+                      <Scoreboard
+                        players={game.players}
+                        completedRounds={game.completedRounds}
+                        currentRoundIndex={game.roundSequence.length}
+                        totalRounds={game.roundSequence.length}
+                      />
+                    </div>
+                  )}
                 </div>
               )
             })}
