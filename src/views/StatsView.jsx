@@ -4,10 +4,10 @@ import { computePlayerStats } from '../engine/scoring'
 
 function KPICard({ label, value, sublabel }) {
   return (
-    <div className="felt-surface p-3 border border-felt-600/30 flex-1 min-w-0">
-      <p className="text-felt-400 text-[10px] sm:text-xs uppercase tracking-wider mb-1">{label}</p>
-      <p className="font-display font-bold text-gold-400 text-lg sm:text-xl truncate">{value}</p>
-      {sublabel && <p className="text-felt-500 text-[10px] sm:text-xs mt-0.5 truncate">{sublabel}</p>}
+    <div className="bg-felt-500 rounded-xl p-3 border border-felt-400/40 flex-1 min-w-0">
+      <p className="text-felt-100 text-[10px] sm:text-xs uppercase tracking-wider mb-1">{label}</p>
+      <p className="font-display font-bold text-white text-lg sm:text-xl truncate">{value}</p>
+      {sublabel && <p className="text-felt-200 text-[10px] sm:text-xs mt-0.5 truncate">{sublabel}</p>}
     </div>
   )
 }
@@ -197,23 +197,23 @@ export default function StatsView({ navigate }) {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
           <KPICard
             label="Most Wins"
-            value={kpis.mostWins.name}
-            sublabel={`${kpis.mostWins.wins} win${kpis.mostWins.wins !== 1 ? 's' : ''}`}
+            value={`${kpis.mostWins.wins} win${kpis.mostWins.wins !== 1 ? 's' : ''}`}
+            sublabel={kpis.mostWins.name}
           />
           <KPICard
             label="Highest Acc %"
-            value={kpis.highestAcc.name}
-            sublabel={`${kpis.highestAcc.bidAccuracy}% accuracy`}
+            value={`${kpis.highestAcc.bidAccuracy}%`}
+            sublabel={kpis.highestAcc.name}
           />
           <KPICard
             label="Highest Score"
-            value={kpis.highestScore.name}
-            sublabel={`${kpis.highestScore.bestGameScore} pts`}
+            value={`${kpis.highestScore.bestGameScore} pts`}
+            sublabel={kpis.highestScore.name}
           />
           <KPICard
             label="Most Bids Made"
-            value={kpis.mostBidCorrectly.name}
-            sublabel={`${kpis.mostBidCorrectly.bidMatches} bids matched`}
+            value={`${kpis.mostBidCorrectly.bidMatches} bids`}
+            sublabel={kpis.mostBidCorrectly.name}
           />
         </div>
       )}
