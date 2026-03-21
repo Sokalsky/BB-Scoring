@@ -13,10 +13,10 @@ import {
 import Scoreboard from '../components/Scoreboard'
 
 const SUIT_COLORS = {
-  Spades: 'text-card-black',
-  Hearts: 'text-card-red',
-  Diamonds: 'text-card-red',
-  Clubs: 'text-card-black',
+  Spades: 'text-gray-900',
+  Hearts: 'text-red-500',
+  Diamonds: 'text-red-500',
+  Clubs: 'text-gray-900',
   'No Trump': 'text-gold-500',
 }
 
