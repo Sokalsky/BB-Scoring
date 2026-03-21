@@ -88,7 +88,7 @@ export default function GameView({ gameId, navigate }) {
         setBidInputs(init)
       } else {
         const init = {}
-        found.players.forEach(p => { init[p.id] = '' })
+        found.players.forEach(p => { init[p.id] = '0' })
         setTricksInputs(init)
       }
     })
@@ -150,7 +150,7 @@ export default function GameView({ gameId, navigate }) {
     const updatedGame = { ...game, phase: 'tricks', currentRoundBids: bids }
     setGame(updatedGame)
     await saveGame(updatedGame)
-    setTricksInputs(Object.fromEntries(players.map(p => [p.id, ''])))
+    setTricksInputs(Object.fromEntries(players.map(p => [p.id, '0'])))
     setError('')
   }
 
@@ -348,7 +348,7 @@ export default function GameView({ gameId, navigate }) {
             </p>
           </div>
           <div className="flex items-center gap-6">
-            <div className="text-right">
+            <div className="text-center">
               <p className="text-felt-100 text-xs uppercase tracking-wider">Total Bid</p>
               <p className="text-3xl font-bold text-white font-display">
                 {phase === 'bidding'
@@ -357,7 +357,7 @@ export default function GameView({ gameId, navigate }) {
                 }
               </p>
             </div>
-            <div className="text-right">
+            <div className="text-center">
               <p className="text-felt-100 text-xs uppercase tracking-wider">Cards</p>
               <p className="text-3xl font-bold text-white font-display">{cardsInRound}</p>
             </div>
