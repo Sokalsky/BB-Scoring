@@ -336,10 +336,10 @@ export default function GameView({ gameId, navigate }) {
   return (
     <div className="space-y-5">
       {/* Round header */}
-      <div className="felt-surface p-4 border border-felt-600/40">
+      <div className="bg-felt-500 rounded-xl p-4 border border-felt-400/40">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-felt-400 text-xs font-medium uppercase tracking-wider">
+            <p className="text-felt-100 text-xs font-medium uppercase tracking-wider">
               Round {currentRoundIndex + 1} of {totalRounds}
             </p>
             <p className={`text-2xl font-bold mt-1 font-display ${SUIT_COLORS[trump]}`}>
@@ -348,23 +348,23 @@ export default function GameView({ gameId, navigate }) {
             </p>
           </div>
           <div className="text-right">
-            <p className="text-felt-400 text-xs uppercase tracking-wider">Cards</p>
-            <p className="text-3xl font-bold text-gold-400 font-display">{cardsInRound}</p>
+            <p className="text-felt-100 text-xs uppercase tracking-wider">Cards</p>
+            <p className="text-3xl font-bold text-white font-display">{cardsInRound}</p>
           </div>
         </div>
-        <div className="mt-3 pt-3 border-t border-felt-600/40 flex items-center justify-between">
-          <p className="text-felt-400 text-sm">
-            Dealer: <span className="text-gold-400 font-semibold">{dealer.name}</span>
+        <div className="mt-3 pt-3 border-t border-felt-400/40 flex items-center justify-between">
+          <p className="text-felt-100 text-sm">
+            Dealer: <span className="text-white font-semibold">{dealer.name}</span>
           </p>
           {/* Progress bar */}
           <div className="flex items-center gap-2">
-            <div className="w-24 h-1.5 bg-felt-700 rounded-full overflow-hidden">
+            <div className="w-24 h-1.5 bg-felt-300/40 rounded-full overflow-hidden">
               <div
                 className="h-full bg-gold-500 rounded-full transition-all duration-500"
                 style={{ width: `${((currentRoundIndex) / totalRounds) * 100}%` }}
               />
             </div>
-            <span className="text-felt-500 text-xs">{Math.round((currentRoundIndex / totalRounds) * 100)}%</span>
+            <span className="text-felt-100 text-xs">{Math.round((currentRoundIndex / totalRounds) * 100)}%</span>
           </div>
         </div>
       </div>
