@@ -578,6 +578,17 @@
         setBidInputs(Object.fromEntries(players.map(p => [p.id, ''])));
       };
 
+      // --- GO BACK TO BIDDING (from tricks phase) ---
+      const goBackToBidding = () => {
+        if (!confirm('Go back to bidding? This will let you re-enter the bids for this round.')) return;
+        const updated = { ...game, phase: 'bidding' };
+        setGame(updated); saveGame(updated);
+        const bidInit = {};
+        game.currentRoundBids.forEach(b => { bidInit[b.playerId] = String(b.bid); });
+        setBidInputs(bidInit);
+        setError('');
+      };
+
       // --- ROUND RESULT ---
       if (roundResult) {
         const { scores, roundRecord, isOver, winners } = roundResult;
@@ -741,6 +752,10 @@
                     : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                 }`}>
                 Submit Round
+              </button>
+              <button onClick={goBackToBidding}
+                className="w-full text-gray-400 text-xs hover:text-blue-500 transition-colors py-2">
+                ← Go back and fix bids
               </button>
             </div>
           )}

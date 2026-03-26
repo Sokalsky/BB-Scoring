@@ -298,6 +298,21 @@ export default function GameView({ gameId, navigate }) {
     setError('')
   }
 
+  // --- GO BACK TO BIDDING (from tricks phase) ---
+  const goBackToBidding = async () => {
+    if (!confirm('Go back to bidding? This will let you re-enter the bids for this round.')) return
+
+    const updatedGame = { ...game, phase: 'bidding' }
+    setGame(updatedGame)
+    await saveGame(updatedGame)
+
+    // Pre-fill bid inputs with the current bids so the user can fix them
+    const bidInit = {}
+    game.currentRoundBids.forEach(b => { bidInit[b.playerId] = String(b.bid) })
+    setBidInputs(bidInit)
+    setError('')
+  }
+
   // --- ROUND RESULT OVERLAY ---
   const advanceFromResult = () => {
     setRoundResult(null)
@@ -547,6 +562,13 @@ export default function GameView({ gameId, navigate }) {
             }`}
           >
             Submit Round
+          </button>
+
+          <button
+            onClick={goBackToBidding}
+            className="w-full text-felt-400 text-xs hover:text-gold-500 transition-colors py-2"
+          >
+            ← Go back and fix bids
           </button>
         </div>
       )}
