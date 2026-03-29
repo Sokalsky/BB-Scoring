@@ -91,12 +91,12 @@ export default function GameView({ gameId, navigate }) {
       setGame(found)
       if (found.phase === 'bidding') {
         const init = {}
-        found.players.forEach(p => { init[p.id] = '' })
+        found.players.forEach(p => { init[p.id] = '0' })
         found.currentRoundBids.forEach(b => { init[b.playerId] = String(b.bid) })
         setBidInputs(init)
       } else {
         const init = {}
-        found.players.forEach(p => { init[p.id] = '' })
+        found.players.forEach(p => { init[p.id] = '0' })
         setTricksInputs(init)
       }
     })
@@ -123,15 +123,20 @@ export default function GameView({ gameId, navigate }) {
           // Reset inputs to match the new state
           if (latest.phase === 'bidding') {
             const init = {}
-            latest.players.forEach(p => { init[p.id] = '' })
+            latest.players.forEach(p => { init[p.id] = '0' })
             latest.currentRoundBids.forEach(b => { init[b.playerId] = String(b.bid) })
             setBidInputs(init)
           } else {
             const init = {}
-            latest.players.forEach(p => { init[p.id] = '' })
+            latest.players.forEach(p => { init[p.id] = '0' })
             setTricksInputs(init)
           }
-          setRoundResult(null)
+          // Don't clear roundResult here — the poll can fire with a stale
+          // closure right after submitTricks, mistaking our own local save
+          // for an external change.  Clearing the overlay would yank the
+          // result screen away and let the user accidentally tap "Submit
+          // Bids" (with all bids at 0) on the next round.  The user
+          // dismisses the overlay explicitly via advanceFromResult.
           setError('')
         }
       } catch { /* ignore poll errors silently */ }
@@ -195,7 +200,7 @@ export default function GameView({ gameId, navigate }) {
     const updatedGame = { ...game, phase: 'tricks', currentRoundBids: bids }
     setGame(updatedGame)
     await saveGame(updatedGame)
-    setTricksInputs(Object.fromEntries(players.map(p => [p.id, ''])))
+    setTricksInputs(Object.fromEntries(players.map(p => [p.id, '0'])))
     setError('')
   }
 
@@ -319,7 +324,7 @@ export default function GameView({ gameId, navigate }) {
     if (roundResult?.isGameOver) {
       navigate('home')
     } else {
-      setBidInputs(Object.fromEntries(players.map(p => [p.id, ''])))
+      setBidInputs(Object.fromEntries(players.map(p => [p.id, '0'])))
     }
   }
 
