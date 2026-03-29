@@ -91,12 +91,12 @@ export default function GameView({ gameId, navigate }) {
       setGame(found)
       if (found.phase === 'bidding') {
         const init = {}
-        found.players.forEach(p => { init[p.id] = '0' })
+        found.players.forEach(p => { init[p.id] = '' })
         found.currentRoundBids.forEach(b => { init[b.playerId] = String(b.bid) })
         setBidInputs(init)
       } else {
         const init = {}
-        found.players.forEach(p => { init[p.id] = '0' })
+        found.players.forEach(p => { init[p.id] = '' })
         setTricksInputs(init)
       }
     })
@@ -123,12 +123,12 @@ export default function GameView({ gameId, navigate }) {
           // Reset inputs to match the new state
           if (latest.phase === 'bidding') {
             const init = {}
-            latest.players.forEach(p => { init[p.id] = '0' })
+            latest.players.forEach(p => { init[p.id] = '' })
             latest.currentRoundBids.forEach(b => { init[b.playerId] = String(b.bid) })
             setBidInputs(init)
           } else {
             const init = {}
-            latest.players.forEach(p => { init[p.id] = '0' })
+            latest.players.forEach(p => { init[p.id] = '' })
             setTricksInputs(init)
           }
           setRoundResult(null)
@@ -195,7 +195,7 @@ export default function GameView({ gameId, navigate }) {
     const updatedGame = { ...game, phase: 'tricks', currentRoundBids: bids }
     setGame(updatedGame)
     await saveGame(updatedGame)
-    setTricksInputs(Object.fromEntries(players.map(p => [p.id, '0'])))
+    setTricksInputs(Object.fromEntries(players.map(p => [p.id, ''])))
     setError('')
   }
 
@@ -319,7 +319,7 @@ export default function GameView({ gameId, navigate }) {
     if (roundResult?.isGameOver) {
       navigate('home')
     } else {
-      setBidInputs(Object.fromEntries(players.map(p => [p.id, '0'])))
+      setBidInputs(Object.fromEntries(players.map(p => [p.id, ''])))
     }
   }
 
