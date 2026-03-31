@@ -213,13 +213,25 @@ app.put('/api/games/:id', async (req, res) => {
       )
     }
 
-    // Upsert rounds + entries
+    // Remove rounds that no longer exist (e.g. after undo)
+    const completedIndexes = game.completedRounds.map(r => r.roundIndex)
+    if (completedIndexes.length > 0) {
+      await client.query(
+        `DELETE FROM rounds WHERE game_id = $1 AND round_index != ALL($2::int[])`,
+        [game.id, completedIndexes]
+      )
+    } else {
+      await client.query(`DELETE FROM rounds WHERE game_id = $1`, [game.id])
+    }
+
+    // Upsert rounds + entries (DO UPDATE so re-scored rounds are saved)
     for (const round of game.completedRounds) {
       const roundId = `${game.id}_r${round.roundIndex}`
       await client.query(
         `INSERT INTO rounds (id, game_id, round_index, cards_in_round, trump_suit, dealer_index)
          VALUES ($1,$2,$3,$4,$5,$6)
-         ON CONFLICT (id) DO NOTHING`,
+         ON CONFLICT (id) DO UPDATE SET
+           cards_in_round=$4, trump_suit=$5, dealer_index=$6`,
         [roundId, game.id, round.roundIndex, round.cardsInRound, round.trumpSuit, round.dealerIndex]
       )
 
@@ -228,7 +240,8 @@ app.put('/api/games/:id', async (req, res) => {
         await client.query(
           `INSERT INTO round_entries (id, round_id, player_id, bid, tricks_won, round_score)
            VALUES ($1,$2,$3,$4,$5,$6)
-           ON CONFLICT (id) DO NOTHING`,
+           ON CONFLICT (id) DO UPDATE SET
+             bid=$4, tricks_won=$5, round_score=$6`,
           [entryId, roundId, score.playerId, score.bid, score.tricks, score.roundScore]
         )
       }
