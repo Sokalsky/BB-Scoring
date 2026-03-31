@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { loadGames, saveGame } from '../storage'
 import {
   getTrumpForRound,
@@ -83,6 +83,14 @@ export default function GameView({ gameId, navigate }) {
   const [error, setError] = useState('')
   const [roundResult, setRoundResult] = useState(null)
 
+  // Refs to avoid stale-closure issues in the polling interval.
+  // Without these, the poll compares against a captured `game` value
+  // that goes stale after local saves (undo, submitTricks, etc.),
+  // causing it to mistake our own writes for external changes and
+  // overwrite user inputs.
+  const gameRef = useRef(null)
+  const roundResultRef = useRef(null)
+
   // Load game initially
   useEffect(() => {
     loadGames().then(allGames => {
@@ -102,25 +110,35 @@ export default function GameView({ gameId, navigate }) {
     })
   }, [gameId])
 
-  // Poll for real-time sync across devices (every 3s)
+  // Keep refs in sync so the poll always sees current values
+  gameRef.current = game
+  roundResultRef.current = roundResult
+
+  // Poll for real-time sync across devices (every 3s).
+  // Uses refs instead of closure values to avoid stale-closure bugs
+  // where local saves (undo, submitTricks) are mistaken for external changes.
   useEffect(() => {
-    if (!game) return
     const interval = setInterval(async () => {
       try {
+        const current = gameRef.current
+        if (!current) return
+
+        // Never overwrite state while the round-result overlay is up —
+        // that's always a local transition, not an external one.
+        if (roundResultRef.current) return
+
         const allGames = await loadGames()
         const latest = allGames.find(g => g.id === gameId)
         if (!latest) return
 
-        // Only update if the server state has meaningfully changed
         const changed =
-          latest.currentRoundIndex !== game.currentRoundIndex ||
-          latest.phase !== game.phase ||
-          latest.completedRounds.length !== game.completedRounds.length ||
-          latest.status !== game.status
+          latest.currentRoundIndex !== current.currentRoundIndex ||
+          latest.phase !== current.phase ||
+          latest.completedRounds.length !== current.completedRounds.length ||
+          latest.status !== current.status
 
         if (changed) {
           setGame(latest)
-          // Reset inputs to match the new state
           if (latest.phase === 'bidding') {
             const init = {}
             latest.players.forEach(p => { init[p.id] = '0' })
@@ -131,18 +149,12 @@ export default function GameView({ gameId, navigate }) {
             latest.players.forEach(p => { init[p.id] = '0' })
             setTricksInputs(init)
           }
-          // Don't clear roundResult here — the poll can fire with a stale
-          // closure right after submitTricks, mistaking our own local save
-          // for an external change.  Clearing the overlay would yank the
-          // result screen away and let the user accidentally tap "Submit
-          // Bids" (with all bids at 0) on the next round.  The user
-          // dismisses the overlay explicitly via advanceFromResult.
           setError('')
         }
       } catch { /* ignore poll errors silently */ }
     }, 3000)
     return () => clearInterval(interval)
-  }, [game?.currentRoundIndex, game?.phase, game?.completedRounds?.length, game?.status, gameId])
+  }, [gameId])
 
   if (!game) {
     return (
