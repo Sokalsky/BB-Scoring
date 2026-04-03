@@ -1,0 +1,12 @@
+{
+  "appId": "com.buggerbridge.scoring",
+  "appName": "Bugger Bridge",
+  "webDir": "dist",
+  "server": {
+    "url": "https://www.buggerbridge.com",
+    "cleartext": false
+  },
+  "ios": {
+    "scheme": "Bugger Bridge"
+  }
+}
