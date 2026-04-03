@@ -94,6 +94,8 @@ export function computePlayerStats(games) {
           bidMatches: 0,
           totalScore: 0,
           bestGameScore: 0,
+          bestGameAcc: 0,
+          bestGameBidMatches: 0,
         };
       }
       const s = statsMap[player.name];
@@ -103,13 +105,22 @@ export function computePlayerStats(games) {
       s.totalScore += gameScore;
       if (gameScore > s.bestGameScore) s.bestGameScore = gameScore;
 
+      let gameRounds = 0;
+      let gameBidMatches = 0;
       game.completedRounds.forEach(round => {
         const bidEntry = round.bids.find(b => b.playerId === player.id);
         const tricksEntry = round.tricks.find(t => t.playerId === player.id);
         if (!bidEntry || !tricksEntry) return;
         s.totalRounds++;
-        if (bidEntry.bid === tricksEntry.tricks) s.bidMatches++;
+        gameRounds++;
+        if (bidEntry.bid === tricksEntry.tricks) {
+          s.bidMatches++;
+          gameBidMatches++;
+        }
       });
+      if (gameBidMatches > s.bestGameBidMatches) s.bestGameBidMatches = gameBidMatches;
+      const gameAcc = gameRounds ? (gameBidMatches / gameRounds) * 100 : 0;
+      if (gameAcc > s.bestGameAcc) s.bestGameAcc = gameAcc;
     });
   });
 
@@ -119,6 +130,8 @@ export function computePlayerStats(games) {
       winRate: s.gamesPlayed ? ((s.wins / s.gamesPlayed) * 100).toFixed(0) : '0',
       avgScore: s.gamesPlayed ? (s.totalScore / s.gamesPlayed).toFixed(1) : '0.0',
       bidAccuracy: s.totalRounds ? ((s.bidMatches / s.totalRounds) * 100).toFixed(0) : '0',
+      bestGameAccuracy: s.bestGameAcc.toFixed(0),
+      bestGameBids: s.bestGameBidMatches,
     }))
     .sort((a, b) => b.gamesPlayed - a.gamesPlayed || b.wins - a.wins);
 }

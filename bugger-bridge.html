@@ -89,6 +89,7 @@
             statsMap[player.name] = {
               name: player.name, gamesPlayed: 0, wins: 0,
               totalRounds: 0, bidMatches: 0, totalScore: 0, bestGameScore: 0,
+              bestGameAcc: 0, bestGameBidMatches: 0,
             };
           }
           const s = statsMap[player.name];
@@ -97,13 +98,22 @@
           if (gs === maxScore) s.wins++;
           s.totalScore += gs;
           if (gs > s.bestGameScore) s.bestGameScore = gs;
+          let gameRounds = 0;
+          let gameBidMatches = 0;
           game.completedRounds.forEach(round => {
             const bidEntry = round.bids.find(b => b.playerId === player.id);
             const tEntry = round.tricks.find(t => t.playerId === player.id);
             if (!bidEntry || !tEntry) return;
             s.totalRounds++;
-            if (bidEntry.bid === tEntry.tricks) s.bidMatches++;
+            gameRounds++;
+            if (bidEntry.bid === tEntry.tricks) {
+              s.bidMatches++;
+              gameBidMatches++;
+            }
           });
+          if (gameBidMatches > s.bestGameBidMatches) s.bestGameBidMatches = gameBidMatches;
+          const gameAcc = gameRounds ? (gameBidMatches / gameRounds) * 100 : 0;
+          if (gameAcc > s.bestGameAcc) s.bestGameAcc = gameAcc;
         });
       });
       return Object.values(statsMap).map(s => ({
@@ -111,6 +121,8 @@
         winRate: s.gamesPlayed ? ((s.wins / s.gamesPlayed) * 100).toFixed(0) : '0',
         avgScore: s.gamesPlayed ? (s.totalScore / s.gamesPlayed).toFixed(1) : '0.0',
         bidAccuracy: s.totalRounds ? ((s.bidMatches / s.totalRounds) * 100).toFixed(0) : '0',
+        bestGameAccuracy: s.bestGameAcc.toFixed(0),
+        bestGameBids: s.bestGameBidMatches,
       })).sort((a, b) => b.gamesPlayed - a.gamesPlayed || b.wins - a.wins);
     }
 

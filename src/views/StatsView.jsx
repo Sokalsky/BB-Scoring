@@ -131,10 +131,10 @@ export default function StatsView({ navigate }) {
     if (!currentStats || currentStats.length === 0) return null
 
     const mostWins = [...currentStats].sort((a, b) => b.wins - a.wins)[0]
-    const highestAcc = [...currentStats].filter(s => s.totalRounds >= 5).sort((a, b) => parseInt(b.bidAccuracy) - parseInt(a.bidAccuracy))[0]
-      || [...currentStats].sort((a, b) => parseInt(b.bidAccuracy) - parseInt(a.bidAccuracy))[0]
+    const highestAcc = [...currentStats].filter(s => s.gamesPlayed >= 1).sort((a, b) => parseInt(b.bestGameAccuracy) - parseInt(a.bestGameAccuracy))[0]
+      || [...currentStats].sort((a, b) => parseInt(b.bestGameAccuracy) - parseInt(a.bestGameAccuracy))[0]
     const highestScore = [...currentStats].sort((a, b) => b.bestGameScore - a.bestGameScore)[0]
-    const mostBidCorrectly = [...currentStats].sort((a, b) => b.bidMatches - a.bidMatches)[0]
+    const mostBidCorrectly = [...currentStats].sort((a, b) => b.bestGameBids - a.bestGameBids)[0]
 
     return { mostWins, highestAcc, highestScore, mostBidCorrectly }
   }, [currentStats])
@@ -201,8 +201,8 @@ export default function StatsView({ navigate }) {
             sublabel={kpis.mostWins.name}
           />
           <KPICard
-            label="Highest Acc %"
-            value={`${kpis.highestAcc.bidAccuracy}%`}
+            label="Best Game Acc %"
+            value={`${kpis.highestAcc.bestGameAccuracy}%`}
             sublabel={kpis.highestAcc.name}
           />
           <KPICard
@@ -212,7 +212,7 @@ export default function StatsView({ navigate }) {
           />
           <KPICard
             label="Most Bids Made"
-            value={`${kpis.mostBidCorrectly.bidMatches} bids`}
+            value={`${kpis.mostBidCorrectly.bestGameBids} bids`}
             sublabel={kpis.mostBidCorrectly.name}
           />
         </div>
