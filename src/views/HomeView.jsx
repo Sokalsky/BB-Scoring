@@ -19,15 +19,15 @@ const SuitDivider = () => (
 )
 
 export default function HomeView({ navigate }) {
-  const [games, setGames] = useState([])
-  const [activeGame, setActiveGame] = useState(null)
+  const [completedGames, setCompletedGames] = useState([])
+  const [activeGames, setActiveGames] = useState([])
   const [loading, setLoading] = useState(true)
   const [expandedGameId, setExpandedGameId] = useState(null)
 
   useEffect(() => {
     loadGames().then(all => {
-      setGames(all.filter(g => g.status === 'complete'))
-      setActiveGame(all.find(g => g.status === 'active') || null)
+      setCompletedGames(all.filter(g => g.status === 'complete'))
+      setActiveGames(all.filter(g => g.status === 'active'))
       setLoading(false)
     })
   }, [])
@@ -36,15 +36,15 @@ export default function HomeView({ navigate }) {
     e.stopPropagation()
     if (!confirm('Delete this game? This cannot be undone.')) return
     await deleteGame(gameId)
-    setGames(prev => prev.filter(g => g.id !== gameId))
-    if (activeGame?.id === gameId) setActiveGame(null)
+    setCompletedGames(prev => prev.filter(g => g.id !== gameId))
+    setActiveGames(prev => prev.filter(g => g.id !== gameId))
   }
 
-  const handleAbandon = async (e) => {
+  const handleAbandon = async (gameId, e) => {
     e.stopPropagation()
-    if (!confirm('Abandon the current game? This cannot be undone.')) return
-    await deleteGame(activeGame.id)
-    setActiveGame(null)
+    if (!confirm('Abandon this game? This cannot be undone.')) return
+    await deleteGame(gameId)
+    setActiveGames(prev => prev.filter(g => g.id !== gameId))
   }
 
   if (loading) {
@@ -58,53 +58,51 @@ export default function HomeView({ navigate }) {
 
   return (
     <div className="space-y-6">
-      {/* Active game banner */}
-      {activeGame ? (
-        <div className="felt-surface p-4 border-gold-600/30 border">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-gold-400 font-display mb-1">
-                Game in Progress
-              </p>
-              <p className="text-felt-200 text-sm">
-                {activeGame.players.map(p => p.name).join(', ')}
-              </p>
-              <p className="text-felt-400 text-xs mt-1">
-                Round {activeGame.currentRoundIndex + 1} of {activeGame.roundSequence.length}
-              </p>
-            </div>
-            <div className="flex gap-2 shrink-0">
-              <button
-                onClick={() => navigate('game', activeGame.id)}
-                className="btn-gold text-sm py-2 px-4"
-              >
-                Resume
-              </button>
-              <button
-                onClick={handleAbandon}
-                className="btn-danger text-sm py-2 px-3"
-              >
-                Abandon
-              </button>
-            </div>
+      {/* New Game button — always available */}
+      <button
+        onClick={() => navigate('setup')}
+        className="btn-gold w-full py-4 text-lg"
+      >
+        Deal a New Game
+      </button>
+
+      {/* Active games list */}
+      {activeGames.length > 0 && (
+        <div>
+          <h2 className="font-display text-lg font-semibold text-felt-200 mb-3">
+            Games in Progress ({activeGames.length})
+          </h2>
+          <div className="space-y-3">
+            {activeGames.map(game => (
+              <div key={game.id} className="felt-surface p-4 border-gold-600/30 border">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-felt-200 text-sm">
+                      {game.players.map(p => p.name).join(', ')}
+                    </p>
+                    <p className="text-felt-400 text-xs mt-1">
+                      Round {game.currentRoundIndex + 1} of {game.roundSequence.length}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      onClick={() => navigate('game', game.id)}
+                      className="btn-gold text-sm py-2 px-4"
+                    >
+                      Resume
+                    </button>
+                    <button
+                      onClick={(e) => handleAbandon(game.id, e)}
+                      className="btn-danger text-sm py-2 px-3"
+                    >
+                      Abandon
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-      ) : (
-        <button
-          onClick={() => navigate('setup')}
-          className="btn-gold w-full py-4 text-lg"
-        >
-          Deal a New Game
-        </button>
-      )}
-
-      {activeGame && (
-        <button
-          disabled
-          className="w-full bg-felt-800/50 text-felt-500 py-3 rounded-xl text-sm font-medium cursor-not-allowed border border-felt-700/30"
-        >
-          Finish current game before starting a new one
-        </button>
       )}
 
       <SuitDivider />
@@ -112,19 +110,19 @@ export default function HomeView({ navigate }) {
       {/* Completed games */}
       <div>
         <h2 className="font-display text-lg font-semibold text-felt-200 mb-3">
-          {games.length === 0 ? 'No completed games yet' : `Completed Games (${games.length})`}
+          {completedGames.length === 0 ? 'No completed games yet' : `Completed Games (${completedGames.length})`}
         </h2>
 
-        {games.length === 0 && (
+        {completedGames.length === 0 && (
           <div className="text-center py-10">
             <p className="text-5xl mb-3 opacity-30">🃏</p>
             <p className="text-felt-500 text-sm">Your game history will appear here.</p>
           </div>
         )}
 
-        {games.length > 0 && (
+        {completedGames.length > 0 && (
           <div className="space-y-3">
-            {games.map(game => {
+            {completedGames.map(game => {
               const scores = getCumulativeScores(game.completedRounds, game.players)
               const winners = getWinners(game)
               const winnerNames = winners.map(w => w.name).join(' & ')

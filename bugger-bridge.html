@@ -267,67 +267,73 @@
     // HOME VIEW
     // ============================================================
     function HomeView({ navigate }) {
-      const [games, setGames] = useState([]);
-      const [activeGame, setActiveGame] = useState(null);
+      const [completedGames, setCompletedGames] = useState([]);
+      const [activeGames, setActiveGames] = useState([]);
 
       useEffect(() => {
         const all = loadGames();
-        setGames(all.filter(g => g.status === 'complete'));
-        setActiveGame(all.find(g => g.status === 'active') || null);
+        setCompletedGames(all.filter(g => g.status === 'complete'));
+        setActiveGames(all.filter(g => g.status === 'active'));
       }, []);
 
       const handleDelete = (gameId, e) => {
         e.stopPropagation();
         if (!window.confirm('Delete this game permanently?')) return;
         deleteGame(gameId);
-        setGames(prev => prev.filter(g => g.id !== gameId));
+        setCompletedGames(prev => prev.filter(g => g.id !== gameId));
+        setActiveGames(prev => prev.filter(g => g.id !== gameId));
       };
 
-      const handleAbandon = () => {
-        if (!window.confirm('Abandon the current game? All progress will be lost.')) return;
-        deleteGame(activeGame.id);
-        setActiveGame(null);
+      const handleAbandon = (gameId, e) => {
+        e.stopPropagation();
+        if (!window.confirm('Abandon this game? All progress will be lost.')) return;
+        deleteGame(gameId);
+        setActiveGames(prev => prev.filter(g => g.id !== gameId));
       };
 
       const fmt = (iso) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 
       return (
         <div className="space-y-5">
-          {activeGame ? (
-            <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 shadow-sm">
-              <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">Game in Progress</p>
-              <p className="text-sm text-gray-700">{activeGame.players.map(p => p.name).join(', ')}</p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Round {activeGame.currentRoundIndex + 1} of {activeGame.roundSequence.length}
-              </p>
-              <div className="flex gap-2 mt-3">
-                <button onClick={() => navigate('game', activeGame.id)}
-                  className="flex-1 bg-blue-600 text-white text-sm py-2.5 rounded-xl font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors">
-                  Resume Game
-                </button>
-                <button onClick={handleAbandon}
-                  className="bg-white text-red-500 border border-red-300 text-sm px-4 py-2.5 rounded-xl font-medium hover:bg-red-50 transition-colors">
-                  Abandon
-                </button>
+          <button onClick={() => navigate('setup')}
+            className="w-full bg-blue-600 text-white py-4 rounded-2xl text-lg font-bold hover:bg-blue-700 active:bg-blue-800 transition-colors shadow-md">
+            + New Game
+          </button>
+
+          {activeGames.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                Games in Progress ({activeGames.length})
+              </h2>
+              <div className="space-y-3">
+                {activeGames.map(game => (
+                  <div key={game.id} className="bg-amber-50 border border-amber-300 rounded-2xl p-4 shadow-sm">
+                    <p className="text-sm text-gray-700">{game.players.map(p => p.name).join(', ')}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Round {game.currentRoundIndex + 1} of {game.roundSequence.length}
+                    </p>
+                    <div className="flex gap-2 mt-3">
+                      <button onClick={() => navigate('game', game.id)}
+                        className="flex-1 bg-blue-600 text-white text-sm py-2.5 rounded-xl font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors">
+                        Resume Game
+                      </button>
+                      <button onClick={(e) => handleAbandon(game.id, e)}
+                        className="bg-white text-red-500 border border-red-300 text-sm px-4 py-2.5 rounded-xl font-medium hover:bg-red-50 transition-colors">
+                        Abandon
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-          ) : (
-            <button onClick={() => navigate('setup')}
-              className="w-full bg-blue-600 text-white py-4 rounded-2xl text-lg font-bold hover:bg-blue-700 active:bg-blue-800 transition-colors shadow-md">
-              + New Game
-            </button>
-          )}
-
-          {activeGame && (
-            <p className="text-center text-sm text-gray-400">Finish or abandon current game to start a new one.</p>
           )}
 
           <div>
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-              {games.length === 0 ? 'No completed games yet' : `Completed Games (${games.length})`}
+              {completedGames.length === 0 ? 'No completed games yet' : `Completed Games (${completedGames.length})`}
             </h2>
             <div className="space-y-3">
-              {games.map(game => {
+              {completedGames.map(game => {
                 const scores = getCumulativeScores(game.completedRounds, game.players);
                 const winners = getWinners(game);
                 return (
@@ -837,10 +843,7 @@
       const [view, setView] = useState('home');
       const [gameId, setGameId] = useState(null);
 
-      useEffect(() => {
-        const active = getActiveGame();
-        if (active) { setGameId(active.id); setView('game'); }
-      }, []);
+      // No longer auto-navigate to active game — users can have multiple games
 
       const navigate = (v, id = null) => {
         setView(v);

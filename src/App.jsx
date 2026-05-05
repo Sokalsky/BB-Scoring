@@ -1,41 +1,17 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import HomeView from './views/HomeView'
 import SetupView from './views/SetupView'
 import GameView from './views/GameView'
 import StatsView from './views/StatsView'
-import { getActiveGame } from './storage'
-
 const SUIT_DECORATIONS = ['♠', '♥', '♦', '♣']
 
 export default function App() {
   const [view, setView] = useState('home')
   const [currentGameId, setCurrentGameId] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    getActiveGame().then(activeGame => {
-      if (activeGame) {
-        setCurrentGameId(activeGame.id)
-        setView('game')
-      }
-      setLoading(false)
-    })
-  }, [])
 
   const navigate = (v, gameId = null) => {
     setView(v)
     if (gameId !== null) setCurrentGameId(gameId)
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-4xl mb-3 animate-pulse">🃏</div>
-          <p className="text-felt-300 font-display text-lg">Shuffling the deck...</p>
-        </div>
-      </div>
-    )
   }
 
   return (
